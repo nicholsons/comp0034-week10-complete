@@ -27,9 +27,12 @@ def create_app():
     # Uses a helper function to initialise extensions
     initialize_extensions(app)
 
-    # Include the routes from routes.py
-    with app.app_context():
-        from . import routes
+    # Include the routes from api_routes.py and main_routes.py
+    from paralympic_app.api_routes import api_bp
+    from paralympic_app.main_routes import main_bp
+
+    app.register_blueprint(main_bp)
+    app.register_blueprint(api_bp)
 
     return app
 

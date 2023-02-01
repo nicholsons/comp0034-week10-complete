@@ -13,6 +13,6 @@ setup(
         "marshmallow-sqlalchemy",
         "pandas",
         "requests",
-        "sklearn",
+        "scikit-learn",
     ],
 )

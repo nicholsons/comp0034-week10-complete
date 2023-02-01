@@ -1,50 +1,28 @@
-import json
 from flask import (
-    render_template,
-    current_app as app,
     request,
     make_response,
     jsonify,
+    Blueprint,
 )
 from paralympic_app import db
 from paralympic_app.models import Region, Event
 from paralympic_app.schemas import RegionSchema, EventSchema
+from paralympic_app.utilities import get_event, get_events
 
 
-# -------
+# Blueprint
+api_bp = Blueprint("api", __name__, url_prefix="/api")
+
+
 # Schemas
-# -------
-
 regions_schema = RegionSchema(many=True)
 region_schema = RegionSchema()
 events_schema = EventSchema(many=True)
 event_schema = EventSchema()
 
-# ------
-# Routes
-# ------
 
-
-@app.route("/")
-def index():
-    """Returns the home page"""
-    # The following version using a url isn't supported by the flask test client, use selenium to test it
-    # url = "http://127.0.0.1:5001/event"
-    # response = requests.get(url).json()
-
-    # This version doesn't require a call to another URL so should work with the test client
-    response = get_events()
-    return render_template("index.html", event_list=response)
-
-
-@app.route("/display_event/<event_id>")
-def display_event(event_id):
-    """Returns the event detail page"""
-    ev = get_event(event_id)
-    return render_template("event.html", event=ev)
-
-
-@app.get("/noc")
+# API Routes
+@api_bp.get("/noc")
 def noc():
     """Returns a response that conatins a list of NOC region codes and their details in JSON.
 
@@ -61,7 +39,7 @@ def noc():
     return response
 
 
-@app.get("/noc/<code>")
+@api_bp.get("/noc/<code>")
 def noc_code(code):
     """Returns the details for a given region code."""
     # Return a 404 code if the region is not found in the database
@@ -72,7 +50,7 @@ def noc_code(code):
     return response
 
 
-@app.post("/noc")
+@api_bp.post("/noc")
 def noc_add():
     """Adds a new NOC record to the dataset."""
     NOC = request.json.get("NOC", "")
@@ -87,7 +65,7 @@ def noc_add():
     return response
 
 
-@app.patch("/noc/<code>")
+@api_bp.patch("/noc/<code>")
 def noc_update(code):
     """Updates changed fields for the NOC record"""
     # https://flask-sqlalchemy.palletsprojects.com/en/3.0.x/queries/#insert-update-delete
@@ -107,7 +85,7 @@ def noc_update(code):
     return response
 
 
-@app.delete("/noc/<code>")
+@api_bp.delete("/noc/<code>")
 def noc_delete(code):
     """Removes a NOC record from the dataset."""
     region = db.one_or_404(db.select(Region).filter_by(NOC=code))
@@ -121,7 +99,7 @@ def noc_delete(code):
     return response
 
 
-@app.get("/event")
+@api_bp.get("/event")
 def event():
     """Returns the details for all events"""
     result = get_events()
@@ -130,7 +108,7 @@ def event():
     return response
 
 
-@app.get("/event/<int:event_id>")
+@api_bp.get("/event/<int:event_id>")
 def event_id(event_id):
     """Returns the details for a specified event"""
     result = get_event(event_id)
@@ -139,7 +117,7 @@ def event_id(event_id):
     return response
 
 
-@app.post("/event")
+@api_bp.post("/event")
 def event_add():
     """Adds a new event record to the dataset."""
     type = request.json.get("type")
@@ -185,7 +163,7 @@ def event_add():
     return response
 
 
-@app.patch("/event/<event_id>")
+@api_bp.patch("/event/<event_id>")
 def event_update(event_id):
     """Updates changed fields for the event
     TODO: does not handle a partial update despite partial=True
@@ -208,21 +186,3 @@ def event_update(event_id):
     response = make_response(result, 200)
     response.headers["Content-Type"] = "application/json"
     return response
-
-
-def get_events():
-    """Function to get all events from the database as objects and convert to json.
-
-    NB: This was extracted to a separate function as it is used in multiple places"""
-    all_events = db.session.execute(db.select(Event)).scalars()
-    event_json = events_schema.dump(all_events)
-    return event_json
-
-
-def get_event(event_id):
-    """Function to get a single event as a json structure"""
-    event = db.session.execute(
-        db.select(Event).filter_by(event_id=event_id)
-    ).one()
-    result = events_schema.dump(event)
-    return result
