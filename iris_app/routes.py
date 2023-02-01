@@ -1,6 +1,13 @@
 from pathlib import Path
 import pickle
-from flask import render_template, current_app as app, request
+from flask import (
+    render_template,
+    current_app as app,
+    request,
+    flash,
+    redirect,
+    url_for,
+)
 import numpy as np
 from iris_app.forms import PredictionForm, UserForm
 from iris_app import db
@@ -17,7 +24,6 @@ def index():
     form = PredictionForm()
 
     if form.validate_on_submit():
-
         # Get all values from the form
         features_from_form = [
             form.sepal_length.data,
@@ -99,6 +105,11 @@ def register():
         new_user = User(email=email, password=password)
         db.session.add(new_user)
         db.session.commit()
-        text = f"<p>You are registered! {repr(new_user)}</p>"
-        return text
+        # Remove to replace with Flash message
+        # text = f"<p>You are registered! {repr(new_user)}</p>"
+        # return text
+        text = f"You are registered! {repr(new_user)}"
+        flash(text)
+        return redirect(url_for("index"))
+
     return render_template("register.html", form=form)
