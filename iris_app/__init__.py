@@ -1,6 +1,7 @@
 from pathlib import Path
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager
 
 
 # Iris app folder
@@ -8,6 +9,9 @@ PROJECT_ROOT = Path(__file__).parent
 
 # Create a global SQLAlchemy object
 db = SQLAlchemy()
+
+# Create Flask-Login
+login_manager = LoginManager()
 
 
 def create_app():
@@ -23,6 +27,10 @@ def create_app():
 
     # Bind the Flask-SQLAlchemy instance to the Flask app
     db.init_app(app)
+
+    # Register the login manager and set the default view for login
+    login_manager.login_view = "login"
+    login_manager.init_app(app)
 
     # Include the routes from routes.py
     with app.app_context():

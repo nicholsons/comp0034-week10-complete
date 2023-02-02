@@ -1,6 +1,14 @@
 from flask_wtf import FlaskForm
-from wtforms import DecimalField, StringField, EmailField
-from wtforms.validators import DataRequired
+from wtforms import (
+    DecimalField,
+    StringField,
+    EmailField,
+    PasswordField,
+    BooleanField,
+)
+from wtforms.validators import DataRequired, ValidationError
+from iris_app.models import User
+from iris_app import db
 
 
 class PredictionForm(FlaskForm):
@@ -18,3 +26,28 @@ class UserForm(FlaskForm):
 
     email = EmailField("email", validators=[DataRequired()])
     password = StringField("password", validators=[DataRequired()])
+
+
+class LoginForm(FlaskForm):
+    email = EmailField(label="Email address", validators=[DataRequired()])
+    password = PasswordField(label="Password", validators=[DataRequired()])
+    remember = BooleanField(label="Remember me")
+
+    def validate_email(self, email):
+        """Check the email exists in the database"""
+        user = db.session.execute(
+            db.select(User).filter_by(email=email.data)
+        ).scalar_one()
+        if user is None:
+            raise ValidationError("No account found with that email address.")
+
+    """
+    def validate_password(self, password):
+        user = db.session.execute(
+            db.select(User).filter_by(email=email.data)
+        ).scalar_one()
+        if user is None:
+            raise ValidationError("No account found with that email address.")
+        if user.password != password.data:
+            raise ValidationError("Incorrect password.")
+    """

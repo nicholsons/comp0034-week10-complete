@@ -1,4 +1,5 @@
 from iris_app import db
+from flask_login import UserMixin
 
 
 class Iris(db.Model):
@@ -21,7 +22,7 @@ class Iris(db.Model):
         return f"{clsname}: <{self.sepal_length}, {self.sepal_width}, {self.petal_length}, {self.petal_width}, {self.species}>"
 
 
-class User(db.Model):
+class User(UserMixin, db.Model):
     """Class to represent users who have created a login"""
 
     __tablename__ = "user"

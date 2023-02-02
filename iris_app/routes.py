@@ -1,4 +1,7 @@
 from pathlib import Path
+from datetime import timedelta
+import sys
+from urllib.parse import urlparse, urljoin
 import pickle
 from flask import (
     render_template,
@@ -7,10 +10,13 @@ from flask import (
     flash,
     redirect,
     url_for,
+    abort,
 )
+from flask_login import logout_user, login_required, login_user
 import numpy as np
-from iris_app.forms import PredictionForm, UserForm
-from iris_app import db
+from sqlalchemy.exc import IntegrityError
+from iris_app.forms import LoginForm, PredictionForm, UserForm
+from iris_app import db, login_manager
 from iris_app.models import Iris, User
 
 
@@ -103,13 +109,71 @@ def register():
         email = request.form.get("email")
         password = request.form.get("password")
         new_user = User(email=email, password=password)
-        db.session.add(new_user)
-        db.session.commit()
-        # Remove to replace with Flash message
-        # text = f"<p>You are registered! {repr(new_user)}</p>"
-        # return text
-        text = f"You are registered! {repr(new_user)}"
-        flash(text)
-        return redirect(url_for("index"))
-
+        try:
+            db.session.add(new_user)
+            db.session.commit()
+            # Remove to replace with Flash message
+            # text = f"<p>You are registered! {repr(new_user)}</p>"
+            # return text
+            text = f"You are registered! {repr(new_user)}"
+            flash(text)
+            return redirect(url_for("index"))
+        except IntegrityError:
+            text = f"An account with that email exists!"
+            flash(text)
     return render_template("register.html", form=form)
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    login_form = LoginForm()
+    if login_form.validate_on_submit():
+        print(login_form.email, file=sys.stderr)
+        user = db.session.execute(
+            db.select(User).filter_by(email=login_form.email.data)
+        ).scalar_one()
+        login_user(
+            user,
+            remember=login_form.remember.data,
+            duration=timedelta(minutes=1),
+        )
+        next = request.args.get("next")
+        if not is_safe_url(next):
+            return abort(400)
+        return redirect(next or url_for("index"))
+    return render_template("login.html", title="Login", form=login_form)
+
+
+@app.route("/logout")
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for("main.index"))
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    """Takes a user ID and returns a user object or None if the user does not exist"""
+    if user_id is not None:
+        user = db.get_or_404(User, user_id)
+        return user
+    return None
+
+
+def is_safe_url(target):
+    host_url = urlparse(request.host_url)
+    redirect_url = urlparse(urljoin(request.host_url, target))
+    return (
+        redirect_url.scheme in ("http", "https")
+        and host_url.netloc == redirect_url.netloc
+    )
+
+
+def get_safe_redirect():
+    url = request.args.get("next")
+    if url and is_safe_url(url):
+        return url
+    url = request.referrer
+    if url and is_safe_url(url):
+        return url
+    return "/"

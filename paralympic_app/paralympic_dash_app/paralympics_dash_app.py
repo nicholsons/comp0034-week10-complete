@@ -1,6 +1,6 @@
 from dash import html, dcc, Dash, dash_table, Input, Output
 import dash_bootstrap_components as dbc
-from paralympic_dash_app import create_charts as cc
+from paralympic_app.paralympic_dash_app import create_charts as cc
 
 
 fig_line_sports = cc.line_chart_sports()

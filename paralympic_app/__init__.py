@@ -1,5 +1,5 @@
 from pathlib import Path
-from flask import Flask
+from flask import Flask, render_template
 from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
 from paralympic_app.paralympic_dash_app.paralympics_dash_app import (
@@ -15,6 +15,14 @@ db = SQLAlchemy()
 ma = Marshmallow()
 
 
+def internal_server_error(e):
+    return render_template("500.html"), 500
+
+
+def page_not_found(e):
+    return render_template("404.html"), 404
+
+
 def create_app():
     """Create and configure the Flask app"""
     app = Flask(__name__)
@@ -25,6 +33,10 @@ def create_app():
     )
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SQLALCHEMY_ECHO"] = True
+
+    # Register the error handlers
+    app.register_error_handler(500, internal_server_error)
+    app.register_error_handler(404, page_not_found)
 
     # Uses a helper function to initialise extensions
     initialize_extensions(app)
