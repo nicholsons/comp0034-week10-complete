@@ -2,7 +2,9 @@ from pathlib import Path
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
-
+from paralympic_app.paralympic_dash_app.paralympics_dash_app import (
+    create_dash_app,
+)
 
 # Sets the project root folder
 PROJECT_ROOT = Path(__file__).parent
@@ -43,3 +45,5 @@ def initialize_extensions(app):
     db.init_app(app)
     # Flask-Marshmallow
     ma.init_app(app)
+    # Dash app
+    create_dash_app(app)
