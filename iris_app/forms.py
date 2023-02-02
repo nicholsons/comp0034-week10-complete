@@ -41,8 +41,7 @@ class LoginForm(FlaskForm):
         if user is None:
             raise ValidationError("No account found with that email address.")
 
-    """
-    def validate_password(self, password):
+    def validate_password(self, password, email):
         user = db.session.execute(
             db.select(User).filter_by(email=email.data)
         ).scalar_one()
@@ -50,4 +49,3 @@ class LoginForm(FlaskForm):
             raise ValidationError("No account found with that email address.")
         if user.password != password.data:
             raise ValidationError("Incorrect password.")
-    """
