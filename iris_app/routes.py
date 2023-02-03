@@ -1,6 +1,5 @@
 from pathlib import Path
 from datetime import timedelta
-import sys
 from urllib.parse import urlparse, urljoin
 import pickle
 from flask import (
@@ -14,8 +13,8 @@ from flask import (
 )
 from flask_login import logout_user, login_required, login_user
 import numpy as np
-from sqlalchemy.exc import IntegrityError
-from iris_app.forms import LoginForm, PredictionForm, UserForm
+from sqlalchemy.exc import IntegrityError, NoResultFound
+from iris_app.forms import LoginForm, PredictionForm, RegisterForm
 from iris_app import db, login_manager
 from iris_app.models import Iris, User
 
@@ -104,7 +103,8 @@ def iris_list():
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
-    form = UserForm()
+    """Register new user (save to database)."""
+    form = RegisterForm()
     if form.validate_on_submit():
         email = request.form.get("email")
         password = request.form.get("password")
@@ -119,34 +119,48 @@ def register():
             flash(text)
             return redirect(url_for("index"))
         except IntegrityError:
-            text = f"An account with that email exists!"
+            text = "An account with that email exists!"
             flash(text)
+            return redirect(url_for("login"))
     return render_template("register.html", form=form)
 
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    """Login the user if the password and email are valid."""
     login_form = LoginForm()
+
     if login_form.validate_on_submit():
-        print(login_form.email, file=sys.stderr)
-        user = db.session.execute(
-            db.select(User).filter_by(email=login_form.email.data)
-        ).scalar_one()
-        login_user(
-            user,
-            remember=login_form.remember.data,
-            duration=timedelta(minutes=1),
-        )
-        next = request.args.get("next")
-        if not is_safe_url(next):
-            return abort(400)
-        return redirect(next or url_for("index"))
+        try:
+            # Query if the user exists. If not raise a NoResultFound error and return to the login form
+            user = db.session.execute(
+                db.select(User).filter_by(email=login_form.email.data)
+            ).scalar_one()
+
+            if user and user.check_password(login_form.password.data):
+                # If the user exists and their password is correct, login the user
+                login_user(
+                    user,
+                    remember=login_form.remember.data,
+                    duration=timedelta(minutes=1),
+                )
+                # If they came to login from another page, return them to that page after login, otherwise go to home
+                next = request.args.get("next")
+                if not is_safe_url(next):
+                    return abort(400)
+                return redirect(next or url_for("index"))
+            else:
+                # Message to show if the password was incorrect
+                flash("Incorrect password")
+        except NoResultFound:
+            flash("Email address not found")
     return render_template("login.html", title="Login", form=login_form)
 
 
 @app.route("/logout")
 @login_required
 def logout():
+    """Logs out a user if logged in and redirects to the home page."""
     logout_user()
     return redirect(url_for("index"))
 
@@ -161,6 +175,7 @@ def load_user(user_id):
 
 
 def is_safe_url(target):
+    """Validate that the URL is from our app"""
     host_url = urlparse(request.host_url)
     redirect_url = urlparse(urljoin(request.host_url, target))
     return (
@@ -170,6 +185,9 @@ def is_safe_url(target):
 
 
 def get_safe_redirect():
+    """Safely redirect to another URL. If the URL is not safe, then return to home.
+
+    Uses the is_safe_url function to check that the URL is in your app"""
     url = request.args.get("next")
     if url and is_safe_url(url):
         return url

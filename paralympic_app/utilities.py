@@ -20,12 +20,14 @@ def get_events():
 
 
 def get_event(event_id):
-    """Function to get a single event as a json structure"""
-    # Replace this with get_or_404 to handle not found errors
+    """Function to get a single event as a json structure
+
+    :return Event json or None: Event JSON if event exists, otherwise None"""
     event = db.session.execute(
         db.select(Event).filter_by(event_id=event_id)
-    ).one()
-    # event = db.get_or_404(Event, event_id)
-    # print(type(event), file=sys.stderr)
-    result = events_schema.dump(event)
-    return event
+    ).scalar_one_or_none()
+    if event:
+        result = events_schema.dump(event)
+        return result
+    else:
+        return event

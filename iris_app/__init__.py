@@ -23,7 +23,7 @@ def create_app():
         PROJECT_ROOT.joinpath("data", "iris.db")
     )
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-    app.config["SQLALCHEMY_ECHO"] = True
+    app.config["SQLALCHEMY_ECHO"] = False
 
     # Bind the Flask-SQLAlchemy instance to the Flask app
     db.init_app(app)

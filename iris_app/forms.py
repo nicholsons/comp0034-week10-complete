@@ -21,31 +21,14 @@ class PredictionForm(FlaskForm):
     petal_width = DecimalField(validators=[DataRequired()])
 
 
-class UserForm(FlaskForm):
+class RegisterForm(FlaskForm):
     """Fields to a form to input the values required for adding a new user account"""
 
     email = EmailField("email", validators=[DataRequired()])
-    password = StringField("password", validators=[DataRequired()])
+    password = PasswordField("password", validators=[DataRequired()])
 
 
 class LoginForm(FlaskForm):
     email = EmailField(label="Email address", validators=[DataRequired()])
     password = PasswordField(label="Password", validators=[DataRequired()])
     remember = BooleanField(label="Remember me")
-
-    def validate_email(self, email):
-        """Check the email exists in the database"""
-        user = db.session.execute(
-            db.select(User).filter_by(email=email.data)
-        ).scalar_one()
-        if user is None:
-            raise ValidationError("No account found with that email address.")
-
-    def validate_password(self, password, email):
-        user = db.session.execute(
-            db.select(User).filter_by(email=email.data)
-        ).scalar_one()
-        if user is None:
-            raise ValidationError("No account found with that email address.")
-        if user.password != password.data:
-            raise ValidationError("Incorrect password.")

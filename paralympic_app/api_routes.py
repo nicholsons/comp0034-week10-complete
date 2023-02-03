@@ -1,9 +1,15 @@
+from datetime import datetime, timedelta
+import sys
+import jwt
+from functools import wraps
 from flask import (
     request,
     make_response,
     jsonify,
     Blueprint,
+    current_app as app,
 )
+from iris_app.models import User
 from paralympic_app import db
 from paralympic_app.models import Region, Event
 from paralympic_app.schemas import RegionSchema, EventSchema
@@ -19,6 +25,33 @@ regions_schema = RegionSchema(many=True)
 region_schema = RegionSchema()
 events_schema = EventSchema(many=True)
 event_schema = EventSchema()
+
+
+# Custom decorator
+def token_required(f):
+    """Require valid jwt for a route
+
+    Decorator to protect routes using jwt
+    """
+
+    @wraps(f)
+    def decorator(*args, **kwargs):
+        token = request.headers.get("Authorization")
+
+        if not token:
+            response = {"message": "Token invalid"}
+            return make_response(response, 401)
+        try:
+            data = jwt.decode(token, app.config["SECRET_KEY"])
+            user = db.session.execute(
+                db.select(User).filter_by(email=data.get("email"))
+            ).scalar_one_or_none()
+        except Exception as err:
+            response = {"message": "Token invalid"}
+            return make_response(response, 401)
+        return f(user, *args, **kwargs)
+
+    return decorator
 
 
 # API Routes
@@ -43,10 +76,22 @@ def noc():
 def noc_code(code):
     """Returns the details for a given region code."""
     # Return a 404 code if the region is not found in the database
-    region = db.one_or_404(db.select(Region).filter_by(NOC=code))
-    result = region_schema.dump(region)
-    response = make_response(result, 200)
-    response.headers["Content-Type"] = "application/json"
+    region = db.session.execute(
+        db.select(User).filter_by(NOC=code)
+    ).one_or_none()
+    if region:
+        result = region_schema.dump(region)
+        response = make_response(result, 200)
+        response.headers["Content-Type"] = "application/json"
+    else:
+        message = jsonify(
+            {
+                "status": 404,
+                "error": "Not found",
+                "message": "Invalid resource URI",
+            }
+        )
+        response = make_response(message, 404)
     return response
 
 
@@ -86,6 +131,7 @@ def noc_update(code):
 
 
 @api_bp.delete("/noc/<code>")
+@token_required
 def noc_delete(code):
     """Removes a NOC record from the dataset."""
     region = db.one_or_404(db.select(Region).filter_by(NOC=code))
@@ -112,8 +158,18 @@ def event():
 def event_id(event_id):
     """Returns the details for a specified event"""
     result = get_event(event_id)
-    response = make_response(result, 200)
-    response.headers["Content-Type"] = "application/json"
+    if result:
+        response = make_response(result, 200)
+        response.headers["Content-Type"] = "application/json"
+    else:
+        message = jsonify(
+            {
+                "status": 404,
+                "error": "Not found",
+                "message": "Invalid resource URI",
+            }
+        )
+        response = make_response(message, 404)
     return response
 
 
@@ -169,20 +225,103 @@ def event_update(event_id):
     TODO: does not handle a partial update despite partial=True
     """
     # Find the current event in the database
-    existing_event = db.one_or_404(
-        db.select(Event).filter_by(event_id=event_id)
-    )
-    # Get the updated details from the json sent in the HTTP patch request
-    event_json = request.get_json()
-    # Use Marshmallow to update the existing records with the changes in the json
-    event_schema.load(event_json, instance=existing_event, partial=True)
-    # Commit the changes to the database
-    db.session.commit()
-    # Return json showing the updated record
-    existing_event = db.one_or_404(
-        db.select(Event).filter_by(event_id=event_id)
-    )
-    result = event_schema.jsonify(existing_event)
-    response = make_response(result, 200)
-    response.headers["Content-Type"] = "application/json"
+    existing_event = db.session.execute(
+        db.select(User).filter_by(event_id=event_id)
+    ).one_or_none()
+
+    if existing_event:
+        # Get the updated details from the json sent in the HTTP patch request
+        event_json = request.get_json()
+        # Use Marshmallow to update the existing records with the changes in the json
+        event_schema.load(event_json, instance=existing_event, partial=True)
+        # Commit the changes to the database
+        db.session.commit()
+        # Return json showing the updated record
+        updated_event = db.session.execute(
+            db.select(User).filter_by(event_id=event_id)
+        ).one_or_none()
+        result = event_schema.jsonify(updated_event)
+        response = make_response(result, 200)
+        response.headers["Content-Type"] = "application/json"
+    else:
+        message = jsonify(
+            {
+                "status": 404,
+                "error": "Not found",
+                "message": "Invalid resource URI",
+            }
+        )
+        response = make_response(message, 404)
     return response
+
+
+@api_bp.route("/register", methods=["GET", "POST"])
+def register():
+    """Register a new user for the REST API"""
+    # Get the JSON data from the request
+    post_data = request.get_json()
+    # Check if user already exists, returns None if the user does not exist
+    user = db.session.execute(
+        db.select(User).filter_by(email=post_data.get("email"))
+    ).scalar_one_or_none()
+    if not user:
+        try:
+            user = User(
+                email=post_data.get("email"),
+                password=post_data.get("password"),
+            )
+            # Add user to the database
+            db.session.add(user)
+            db.session.commit()
+            # Return success message
+            response = {
+                "status": "success",
+                "message": "Successfully registered.",
+            }
+            return make_response(jsonify(response)), 201
+        except Exception as err:
+            response = {
+                "status": "fail",
+                "message": "An error occurred. Please try again.",
+            }
+            return make_response(jsonify(response)), 401
+    else:
+        response = {
+            "status": "fail",
+            "message": "User already exists. Please Log in.",
+        }
+        return make_response(jsonify(response)), 202
+
+
+@api_bp.route("/login", methods=["GET", "POST"])
+def login():
+    """Login for the REST API"""
+    # Get the request JSON data
+    data = request.get_json()
+    try:
+        # Get the user data
+        email = data.get("email")
+        password = data.get("password")
+        user = db.session.execute(
+            db.select(User).filter_by(email=email)
+        ).scalar_one_or_none()
+        if user and user.check_password(password):
+            payload = {
+                "exp": datetime.utcnow() + timedelta(minutes=5),
+                "iat": datetime.utcnow(),
+                "sub": user.id,
+            }
+            auth_token = jwt.encode(
+                payload, app.config.get("SECRET_KEY"), algorithm="HS256"
+            )
+            # auth_token = user.encode_auth_token(user.id)
+            if auth_token:
+                response = {
+                    "status": "success",
+                    "message": "Successfully logged in.",
+                }
+                return make_response(jsonify(response)), 200
+    except Exception as err:
+        print(err)
+        response = {"status": "fail", "message": "Try again"}
+        return make_response(jsonify(response)), 500

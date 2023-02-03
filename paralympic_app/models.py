@@ -1,3 +1,8 @@
+from datetime import datetime, timedelta
+import jwt
+import sys
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask import current_app as app
 from paralympic_app import db
 
 
@@ -49,3 +54,65 @@ class Event(db.Model):
         """
         clsname = self.__class__.__name__
         return f"<{clsname}: {self.type},{self.type}, {self.year}, {self.location}, {self.lat}, {self.lon}, {self.NOC}, {self.start}, {self.end}, {self.disabilities_included}, {self.events}, {self.sports}, {self.countries}, {self.male}, {self.female}, {self.participants}, {self.highlights}>"
+
+
+class User(db.Model):
+    """User model for use with login"""
+
+    __tablename__ = "user"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    email = db.Column(db.String(255), unique=True, nullable=False)
+    password = db.Column(db.String(255), nullable=False)
+
+    def __init__(self, email, password):
+        self.email = email
+        self.password = generate_password_hash(password)
+
+    def __repr__(self):
+        """
+        Returns the attributes of a User as a string, except for the password
+        :returns str
+        """
+        clsname = self.__class__.__name__
+        return f"{clsname}: <{self.id}, {self.email}>"
+
+    def check_password(self, password):
+        """Checks the text matches the hashed password.
+
+        :return: Boolean
+        """
+        return check_password_hash(self.password, password)
+
+    def encode_auth_token(self, user_id):
+        """Generates the auth token
+        :return: string
+        """
+        payload = {
+            "exp": datetime.utcnow() + timedelta(minutes=5),
+            "iat": datetime.utcnow(),
+            "sub": user_id,
+        }
+        print(payload, file=sys.stderr)
+        try:
+            return jwt.encode(
+                payload, app.config.get("SECRET_KEY"), algorithm="HS256"
+            )
+        except Exception as err:
+            return err
+
+    @staticmethod
+    def decode_auth_token(auth_token):
+        """
+        Decodes the auth token.
+
+        :param auth_token:
+        :return: integer|string
+        """
+        try:
+            payload = jwt.decode(auth_token, app.config.get("SECRET_KEY"))
+            return payload["sub"]
+        except jwt.ExpiredSignatureError:
+            return "Token expired. Please log in again."
+        except jwt.InvalidTokenError:
+            return "Invalid token. Please log in again."
