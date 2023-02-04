@@ -1,5 +1,5 @@
 from pathlib import Path
-from flask import Flask
+from flask import Flask, render_template
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 
@@ -14,6 +14,15 @@ db = SQLAlchemy()
 login_manager = LoginManager()
 
 
+# Custom error routes
+def internal_server_error(e):
+    return render_template("500.html"), 500
+
+
+def page_not_found(e):
+    return render_template("404.html"), 404
+
+
 def create_app():
     """Create and configure the Flask app"""
     app = Flask(__name__)
@@ -24,6 +33,10 @@ def create_app():
     )
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SQLALCHEMY_ECHO"] = False
+
+    # Register error handlers
+    app.register_error_handler(500, internal_server_error)
+    app.register_error_handler(404, page_not_found)
 
     # Bind the Flask-SQLAlchemy instance to the Flask app
     db.init_app(app)

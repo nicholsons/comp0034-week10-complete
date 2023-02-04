@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-import sys
 import jwt
 from functools import wraps
 from flask import (
@@ -9,7 +8,7 @@ from flask import (
     Blueprint,
     current_app as app,
 )
-from iris_app.models import User
+from paralympic_app.models import User
 from paralympic_app import db
 from paralympic_app.models import Region, Event
 from paralympic_app.schemas import RegionSchema, EventSchema
